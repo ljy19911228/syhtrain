@@ -1,24 +1,26 @@
 package train.xjtuse.keepfit;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ExpandableListView;
+import android.widget.TimePicker;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 public class MainActivity extends Activity implements CheckBox.OnCheckedChangeListener {
 
     private static String TAG = "method";
+
+    private static int WeekDay[] = {R.id.monday,R.id.tuesday,R.id.wednesday,R.id.thursday,R.id.friday,R.id.saturday,R.id.sunday};
     
-    private ArrayList<HashMap<String,Object>> grouplist;
-    private ArrayList<ArrayList<HashMap<String,Object>>> itemlist;
     private PlanListAdapter adapter;
     private View planView;
     private ArrayList<Plan> planList;
@@ -31,9 +33,64 @@ public class MainActivity extends Activity implements CheckBox.OnCheckedChangeLi
 
     public void loadPlanList(){
         if (planList==null)planList = new ArrayList<Plan>();
+        else planList.clear();
+        SharedPreferences spf = getSharedPreferences("plan", MODE_PRIVATE);
+        int plancount = spf.getInt("plancount", 0);
+        for (int i=0;i<plancount;i++){
+            Plan plan = new Plan();
+            plan.setName(spf.getString("name" + i, ""));
+            plan.setActive(spf.getBoolean("active" + i, false));
+            plan.setFrequency(spf.getInt("frequency" + i, 0));
+            planList.add(plan);
+            int subplancount = spf.getInt("subplancount"+i,0);
+            ArrayList<Plan> subplanlist = new ArrayList<Plan>();
+            for (int j=0;j<subplancount;j++){
+                Plan subplan = new Plan();
+                subplan.setName(spf.getString("subname" + i + "," + j,""));
+                subplan.setGroup(spf.getInt("group" + i + "," + j, 0));
+                subplan.setTime(spf.getInt("time"+i+","+j,0));
+                subplanlist.add(subplan);
+            }
+            planList.get(i).setSubPlanList(subplanlist);
+            subplancount = spf.getInt("subplancount2,"+i,0);
+            if (subplancount==0)continue;
+            subplanlist = new ArrayList<Plan>();
+            for (int j=0;j<subplancount;j++){
+                Plan subplan = new Plan();
+                subplan.setName(spf.getString("subname2," + i + "," + j,""));
+                subplan.setGroup(spf.getInt("group2," + i + "," + j, 0));
+                subplan.setTime(spf.getInt("time2," + i + "," + j, 0));
+                subplanlist.add(subplan);
+            }
+            planList.get(i).setSubPlanList2(subplanlist);
+        }
     }
 
     public void savePlanList(){
+        SharedPreferences.Editor editor = getSharedPreferences("plan", MODE_PRIVATE).edit();
+        editor.putInt("plancount", planList.size());
+        for (int i=0;i<planList.size();i++){
+            editor.putString("name" + i, planList.get(i).getName());
+            editor.putBoolean("active" + i, planList.get(i).isActive());
+            editor.putInt("frequency"+i, planList.get(i).getFrequency());
+            editor.putInt("subplancount" + i, planList.get(i).getSubPlanList().size());
+            for (int j=0;j<planList.get(i).getSubPlanList().size();j++){
+                editor.putString("subname" + i + "," + j, planList.get(i).getSubPlanList().get(j).getName());
+                editor.putInt("group" + i + "," + j, planList.get(i).getSubPlanList().get(j).getGroup());
+                editor.putInt("time" + i + "," + j, planList.get(i).getSubPlanList().get(j).getTime());
+            }
+            if (planList.get(i).getSubPlanList2()==null){
+                editor.putInt("subplancount2," + i,0);
+                continue;
+            }
+            editor.putInt("subplancount2," + i, planList.get(i).getSubPlanList2().size());
+            for (int j=0;j<planList.get(i).getSubPlanList2().size();j++){
+                editor.putString("subname2,"+i+","+j,planList.get(i).getSubPlanList2().get(j).getName());
+                editor.putInt("group2,"+i+","+j,planList.get(i).getSubPlanList2().get(j).getGroup());
+                editor.putInt("time2,"+i+","+j,planList.get(i).getSubPlanList2().get(j).getTime());
+            }
+        }
+        editor.commit();
 
     }
 
@@ -72,6 +129,33 @@ public class MainActivity extends Activity implements CheckBox.OnCheckedChangeLi
 
     public void toMain(View v){
         setContentView(R.layout.activity_main);
+    }
+
+    public void toNotificationSetting(View v){
+        setContentView(R.layout.notification_setting);
+        TimePicker timePicker = (TimePicker)findViewById(R.id.timePicker);
+        timePicker.setIs24HourView(true);
+        SharedPreferences spf = getSharedPreferences("notification",MODE_PRIVATE);
+        timePicker.setCurrentHour(spf.getInt("hour",19));
+        timePicker.setCurrentMinute(spf.getInt("minute",0));
+        for (int i=0;i<7;i++){
+            ((CheckBox)findViewById(WeekDay[i])).setChecked(spf.getBoolean("day"+i,false));
+        }
+    }
+
+    public void setNotification(View v){
+        TimePicker timePicker = (TimePicker)findViewById(R.id.timePicker);
+        SharedPreferences.Editor editor = getSharedPreferences("notification",MODE_PRIVATE).edit();
+        editor.putInt("hour",timePicker.getCurrentHour());
+        editor.putInt("minute", timePicker.getCurrentMinute());
+        for (int i = 0 ; i < 7 ; i++){
+            editor.putBoolean("day"+i,((CheckBox)findViewById(WeekDay[i])).isChecked());
+        }
+        editor.commit();
+        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+        notificationManager.notify();
+        toMain(v);
     }
 
     public void addBasicPlan(View v){
@@ -263,29 +347,7 @@ public class MainActivity extends Activity implements CheckBox.OnCheckedChangeLi
     }
 
     public void addCustomPlan(View v){
-
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
+        Log.e(TAG, "addCustomPlan ");
     }
 
     @Override
